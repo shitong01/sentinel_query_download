@@ -40,7 +40,7 @@ def downloadGranule(row):
         datefolder= row_year + '/' + row_month + '/' + row_day +'/'
         aws_url = aws_baseurl + datefolder + row['Granule Name'] + '/' + row['Granule Name'] + '.zip'
         # run the download command
-        status = downloadGranule_wget(aws_url)
+        status = downloadGranule_wget(aws_url, row)
         if status != 0:
             if download_site == 'AWS':
                 print('Amazon download failed. Perhaps granule is not at AWS? Not retrying, as only AWS is specified.')
@@ -49,7 +49,7 @@ def downloadGranule(row):
     if((status != 0 and download_site == 'both') or download_site == 'ASF'):
         asf_url = asf_wget_str + ' ' + row['URL']
         # run the download command
-        status = downloadGranule_wget(asf_url)
+        status = downloadGranule_wget(asf_url, row)
         if status != 0:
             print('ASF download failed. Granule not downloaded.')
     os.chdir(orig_dir)
@@ -63,10 +63,13 @@ def downloadGranule(row):
 #            shutil.copyfileobj(response, ofile)
 #    return 0
 
-def downloadGranule_wget(options_and_url):
-    cmd='wget -c --no-check-certificate -q ' + options_and_url
-    print(cmd)
-    status=subprocess.call(cmd, shell=True)
+def downloadGranule_wget(options_and_url, row):
+    wget_cmd='wget -c --no-check-certificate %s' % (options_and_url)
+    robust_wget_cmd = 'bash ../../robust_download.sh "%s" &> %s.log' % (wget_cmd,row['Granule Name'])
+    print(robust_wget_cmd)
+    qsub_cmd="echo '%s' | qsub -pe mpi 36 -o /home/centos -e /home/centos -r y -V -N %s -cwd" % (robust_wget_cmd,row['Granule Name'])
+    print(qsub_cmd)
+    status=subprocess.call(qsub_cmd, shell=True)
     return status
 
 # implement shell 'mkdir -p' to create directory trees with one command, and ignore 'directory exists' error
@@ -163,4 +166,5 @@ if __name__ == '__main__':
         print('\nNot downloading scene%s.\n'%plural_s)
 
 print('Sentinel query complete.\n')
+
 
