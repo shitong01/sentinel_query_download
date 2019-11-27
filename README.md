@@ -12,3 +12,6 @@ Currently, the script is set up to prefer downloading from the AWS Sentinel-1 Pu
 
 Running multiple downloads in parallel is now enabled through python multiprocssing, via the config file option 'nproc'. The true effective speedup from running many downloads at the same time has not been tested; this may depend on your own storage and bandwidth situation.
 
+## Setup
+In order to make use of quick downloads via aws-cli, please ensure that you have your AWS configuration files (templates in `aws_config`) stored in a shared directory. The location of `aws_config` folder can be defined in sentinel_download.config file.
+

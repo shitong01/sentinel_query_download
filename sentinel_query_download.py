@@ -20,7 +20,8 @@ import multiprocessing as mp
 asf_baseurl='https://api.daac.asf.alaska.edu/services/search/param?'
 
 # AWS base URL for public dataset downloads:
-aws_baseurl = 'http://sentinel1-slc-seasia-pds.s3-website-ap-southeast-1.amazonaws.com/datasets/slc/v1.1/'
+aws_baseurl = 's3://sentinel1-slc-seasia-pds/datasets/slc/v1.1/'
+
 
 
 def downloadGranule(row):
@@ -38,9 +39,9 @@ def downloadGranule(row):
         row_month=row_date[5:7]
         row_day=row_date[8:10]
         datefolder= row_year + '/' + row_month + '/' + row_day +'/'
-        aws_url = aws_baseurl + datefolder + row['Granule Name'] + '/' + row['Granule Name'] + '.zip'
+        aws_url = aws_baseurl + datefolder + row['Granule Name'] + '/'
         # run the download command
-        status = downloadGranule_wget(aws_url, row)
+        status = downloadGranule_awscli(aws_url, row)
         if status != 0:
             if download_site == 'AWS':
                 print('Amazon download failed. Perhaps granule is not at AWS? Not retrying, as only AWS is specified.')
@@ -72,6 +73,19 @@ def downloadGranule_wget(options_and_url, row):
     status=subprocess.call(qsub_cmd, shell=True)
     return status
 
+def downloadGranule_awscli(url, row):
+    if not aws_config:
+         print("AWS configuration folder not specified! Not copying folder.")
+    else:
+        aws_cp_cmd = "cp -R %s ~/.aws && " % aws_config
+    aws_cmd = "aws s3 sync %s . --exclude='*' --include='*.zip'" % (url)
+    robust_aws_cmd = 'bash ../../robust_download.sh "%s" &> %s.log' % (aws_cmd,row['Granule Name'])
+    print(robust_aws_cmd)
+    qsub_cmd="echo '%s' | qsub -pe mpi 36 -o /home/centos -e /home/centos -r y -V -N %s -cwd" % (robust_aws_cmd,row['Granule Name'])
+    print(qsub_cmd)
+    status=subprocess.call(qsub_cmd, shell=True)
+    return status
+
 # implement shell 'mkdir -p' to create directory trees with one command, and ignore 'directory exists' error
 def mkdir_p(path):
     try:
@@ -97,7 +111,7 @@ if __name__ == '__main__':
     config.read(args.config)
     download_site=config.get('download','download_site',fallback='both')
     nproc=config.getint('download','nproc',fallback=1)
-    
+    aws_config=config.get('aws_config','aws_config_folder', fallback=None)
     # we parse the config options directly into a query... this may be too naive
     arg_list=config.items('api_search')
     # join as a single argument string
